@@ -5,8 +5,6 @@
 
 -export([on_client_authenticate/3]).
 
--define(EMPTY(Username), (Username =:= undefined orelse Username =:= <<>>)).
-
 on_client_authenticate(#{clientid := ClientId,
                          username := Username,
                          password := Password} = ClientInfo,
