@@ -1,0 +1,121 @@
+%%-*- mode: erlang -*-
+%% emqx_auth_kpair config mapping
+{mapping, "auth_kpair.mysql.server", "emqx_auth_kpair.server", [
+  {default, {"127.0.0.1", 3306}},
+  {datatype, [integer, ip, string]}
+]}.
+
+{mapping, "auth_kpair.mysql.pool", "emqx_auth_kpair.server", [
+  {default, 8},
+  {datatype, integer}
+]}.
+
+{mapping, "auth_kpair.mysql.username", "emqx_auth_kpair.server", [
+  {default, ""},
+  {datatype, string}
+]}.
+
+{mapping, "auth_kpair.mysql.password", "emqx_auth_kpair.server", [
+  {default, ""},
+  {datatype, string}
+]}.
+
+{mapping, "auth_kpair.mysql.database", "emqx_auth_kpair.server", [
+  {default, "mqtt"},
+  {datatype, string}
+]}.
+
+{mapping, "auth_kpair.mysql.query_timeout", "emqx_auth_kpair.server", [
+  {default, ""},
+  {datatype, string}
+]}.
+
+{mapping, "auth_kpair.mysql.ssl", "emqx_auth_kpair.server", [
+  {default, off},
+  {datatype, flag}
+]}.
+
+{mapping, "auth_kpair.mysql.ssl.cafile", "emqx_auth_kpair.server", [
+  {datatype, string}
+]}.
+
+{mapping, "auth_kpair.mysql.ssl.cacertfile", "emqx_auth_kpair.server", [
+  {datatype, string}
+]}.
+
+{mapping, "auth_kpair.mysql.ssl.keyfile", "emqx_auth_kpair.server", [
+  {datatype, string}
+]}.
+
+{mapping, "auth_kpair.mysql.ssl.verify", "emqx_auth_kpair.server", [
+  {default, false},
+  {datatype, {enum, [true, false]}}
+]}.
+
+{mapping, "auth_kpair.mysql.ssl.server_name_indication", "emqx_auth_kpair.server", [
+  {datatype, string}
+]}.
+
+{translation, "emqx_auth_kpair.server", fun(Conf) ->
+  {MyHost, MyPort} =
+  case cuttlefish:conf_get("auth_kpair.mysql.server", Conf) of
+    {Ip, Port} -> {Ip, Port};
+    S          -> case string:tokens(S, ":") of
+                    [Domain]       -> {Domain, 3306};
+                    [Domain, Port] -> {Domain, list_to_integer(Port)}
+                  end
+    end,
+  Pool = cuttlefish:conf_get("auth_kpair.mysql.pool", Conf),
+  Username = cuttlefish:conf_get("auth_kpair.mysql.username", Conf),
+  Passwd = cuttlefish:conf_get("auth_kpair.mysql.password", Conf),
+  DB = cuttlefish:conf_get("auth_kpair.mysql.database", Conf),
+  Timeout = case cuttlefish:conf_get("auth_kpair.mysql.query_timeout", Conf) of
+                "" -> 300000;
+                Duration ->
+                    case cuttlefish_duration:parse(Duration, ms) of
+                      {error, Reason} -> error(Reason);
+                      Ms when is_integer(Ms) -> Ms
+                  end
+            end,
+  Options = [{pool_size, Pool},
+             {auto_reconnect, 1},
+             {host, MyHost},
+             {port, MyPort},
+             {user, Username},
+             {password, Passwd},
+             {database, DB},
+             {encoding, utf8},
+             {query_timeout, Timeout},
+             {keep_alive, true}],
+  Filter  = fun(Opts) -> [{K, V} || {K, V} <- Opts, V =/= undefined] end,
+  Options1 =
+      case cuttlefish:conf_get("auth_kpair.mysql.ssl", Conf) of
+            true ->
+                CA = cuttlefish:conf_get("auth_kpair.mysql.ssl.cafile", Conf, undefined),
+                Cert = cuttlefish:conf_get("auth_kpair.mysql.ssl.certfile", Conf, undefined),
+                Key = cuttlefish:conf_get("auth_kpair.mysql.ssl.keyfile", Conf, undefined),
+                Verify = case cuttlefish:conf_get("auth_kpair.mysql.ssl.verify", Conf, false) of
+                             true -> verify_peer;
+                             false -> verify_none
+                         end,
+                SNI = case cuttlefish:conf_get("auth_kpair.mysql.ssl.server_name_indication", Conf, undefined) of
+                        "disable" -> disable;
+                        SNI0 -> SNI0
+                      end,
+                Options ++ [{ssl, Filter([{server_name_indication, SNI},
+                                          {cacertfile, CA},
+                                          {certfile, Cert},
+                                          {keyfile, Key},
+                                          {verify, Verify}
+                                         ])
+                            }];
+            _ ->
+                Options
+      end,
+  case inet:parse_address(MyHost) of
+      {ok, IpAddr} when tuple_size(IpAddr) =:= 8 ->
+          [{tcp_options, [inet6]} | Options1];
+      _ ->
+          Options1
+  end
+end}.

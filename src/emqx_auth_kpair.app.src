@@ -1,0 +1,12 @@
+{application, emqx_auth_kpair,
+ [{description, "auth by kpair"},
+  {vsn, "0.0.1"},
+  {modules, []},
+  {registered, [emqx_auth_kpair_sup]},
+  {applications, [kernel, stdlib]},
+  {mod, {emqx_auth_kpair_app, []}},
+  {env, []},
+  {licenses, ["Apache-2.0"]},
+  {maintainers, ["https://github.com/wwhai/emqx_auth_kpair"]},
+  {links, [{"Homepage", "https://wwhai.github.io"}]}
+ ]}.
