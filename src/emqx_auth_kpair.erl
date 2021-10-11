@@ -7,9 +7,9 @@
 
 on_client_authenticate(#{clientid := ClientId,
                          username := Username,
-                         password := Password} = ClientInfo,
+                         password := Password} = _ClientInfo,
                         AuthResult,
-                        #{auth_query := AuthQuery, pool := Pool} = Env) ->
+                        #{auth_query := AuthQuery, pool := Pool} = _Env) ->
     Success = case emqx_auth_kpair_dao:query(Pool, AuthQuery, [ClientId]) of
         {ok, _Columns, [[_ID, _CID, _PUBK, TOKEN, PRIVK, _IP]]} ->
             Sum = sum_key(binary_to_list(Username), binary_to_list(PRIVK), binary_to_list(ClientId)),
@@ -27,7 +27,7 @@ on_client_authenticate(#{clientid := ClientId,
         {ok, success} ->
             {stop, AuthResult#{auth_result => success}};
         {error, not_authorized} ->
-            ?LOG(error, "[Auth kpair] Client auth failed with ClientId: '~p'", [ClientId]),
+            ?LOG(error, "[emqx_auth_kpair] Client auth failed: '~p'", [{clientId, ClientId, username, Username}]),
             {stop, AuthResult#{auth_result => not_authorized}}
     end.
 
